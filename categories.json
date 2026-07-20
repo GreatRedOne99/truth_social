@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Economy",
+    "description": "Anything about the broader US or global economy: GDP, inflation, jobs numbers, recession talk, growth, or general economic conditions.",
+    "alert": true
+  },
+  {
+    "name": "Trade & Tariffs",
+    "description": "Tariffs, trade deals or disputes, import/export policy, trade wars, or specific countries/companies targeted by trade action.",
+    "alert": true
+  },
+  {
+    "name": "Fed & Monetary Policy",
+    "description": "The Federal Reserve, interest rates, the Fed Chair or other Fed personnel, monetary policy decisions, or commentary directed at the Fed.",
+    "alert": true
+  },
+  {
+    "name": "Political Appointments",
+    "description": "Nominations, firings, resignations, or commentary about cabinet members, agency heads, or other senior administration/government personnel.",
+    "alert": true
+  },
+  {
+    "name": "Other",
+    "description": "Anything that doesn't plausibly connect to the economy, trade, the Fed, or political appointments -- personal, social, or unrelated commentary.",
+    "alert": false
+  }
+]

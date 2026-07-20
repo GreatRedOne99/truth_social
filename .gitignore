@@ -1,0 +1,23 @@
+# secrets -- never commit
+.env
+.env.local
+
+# data / state (regenerable, and contains scraped content)
+*.db
+*.db-wal
+*.db-shm
+truth_monitor_state.json
+truthdata/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
