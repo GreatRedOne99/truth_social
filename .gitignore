@@ -8,6 +8,7 @@
 *.db-shm
 truth_monitor_state.json
 truthdata/
+*.md
 
 # python
 __pycache__/

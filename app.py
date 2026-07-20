@@ -16,6 +16,7 @@ import threading
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -220,6 +221,50 @@ def retry_pull(post_id: str, created_at: pd.Timestamp) -> None:
     threading.Thread(target=_run, daemon=True).start()
 
 
+# ----------------------------- candlestick dialog ------------------------------
+
+@st.dialog("2-minute market reaction", width="large")
+def show_candlestick_dialog(row: pd.Series) -> None:
+    posted = row["created_at"]
+    if pd.notna(posted):
+        posted = posted.tz_convert("America/New_York").strftime("%Y-%m-%d %H:%M:%S %Z")
+    st.caption(f"Posted {posted} -- \"{row['text'][:120]}\"")
+
+    if not row["bars_json"]:
+        st.info("No market data for this post -- market was closed, or the "
+                 "pull hasn't completed/succeeded yet.")
+        return
+
+    bars = pd.DataFrame(json.loads(row["bars_json"]))
+    bars["date"] = (pd.to_datetime(bars["date"], unit="ms", utc=True)
+                     .dt.tz_convert("America/New_York"))
+    bars["direction"] = bars.apply(
+        lambda r: "Up" if r["close"] >= r["open"] else "Down", axis=1)
+
+    m1, m2 = st.columns(2)
+    m1.metric("Net move", f"{row['net_move_pct']:.3f}%")
+    m2.metric("Bars", f"{len(bars)} x 5s")
+
+    base = alt.Chart(bars).encode(
+        x=alt.X("date:T", title="Time (ET)", axis=alt.Axis(format="%H:%M:%S")),
+        color=alt.Color(
+            "direction:N",
+            scale=alt.Scale(domain=["Up", "Down"], range=["#26a69a", "#ef5350"]),
+            legend=None,
+        ),
+    )
+    wicks = base.mark_rule().encode(
+        y=alt.Y("low:Q", title="ES price", scale=alt.Scale(zero=False)),
+        y2="high:Q",
+    )
+    bodies = base.mark_bar(size=6).encode(y="open:Q", y2="close:Q")
+    chart = (wicks + bodies).properties(height=420)
+    st.altair_chart(chart, width="stretch")
+
+    st.caption("5-second ES bars, 1 minute before through 1 minute after the "
+               "post -- the only pull this post ever gets.")
+
+
 # -------------------------------- documentation -------------------------------
 
 def user_guide() -> None:
@@ -268,7 +313,8 @@ on the daemon's next poll cycle automatically -- no restart needed.
 - **2min reaction** column is a thumbnail: 5-second ES bars for the 2 minutes
   straddling the post (1 minute before/after). **Net move %** is computed once
   from that window's first Open to its last Close -- there's only ever one
-  pull per post, never a live-updating feed.
+  pull per post, never a live-updating feed. Click the **Chart** button next
+  to it to open the full candlestick chart in a pop-up.
 - **Truth Social** / **Search X** columns link out to the original post and an
   X search for the same text, so you can check cross-platform spread.
 
@@ -364,10 +410,16 @@ def live_feed() -> None:
         lambda b: "backfill" if b else "live")
     display["market"] = display["market_open"].map(
         {1: "open", 0: "closed"}).fillna("pending")
+    display["expand"] = ":material/candlestick_chart:"
+
+    def _on_chart_click() -> None:
+        click = st.session_state.get("chart_click")
+        if click:
+            st.session_state["chart_open_row"] = click["row"]
 
     st.dataframe(
         display[["seen_at", "created_at", "source", "categories", "reason",
-                  "text", "market", "net_move_pct", "chart",
+                  "text", "market", "net_move_pct", "chart", "expand",
                   "truth_link", "x_link"]],
         width="stretch",
         hide_index=True,
@@ -386,12 +438,20 @@ def live_feed() -> None:
                 "Net move %", format="%.3f%%", width="small"),
             "chart": st.column_config.LineChartColumn(
                 "2min reaction", width="small"),
+            "expand": st.column_config.ButtonColumn(
+                "Chart", help="Open the full 2-minute candlestick chart",
+                on_click=_on_chart_click, key="chart_click", width="small"),
             "truth_link": st.column_config.LinkColumn(
                 "Truth Social", display_text="view", width="small"),
             "x_link": st.column_config.LinkColumn(
                 "Search X", display_text="search", width="small"),
         },
     )
+
+    if st.session_state.get("chart_open_row") is not None:
+        row_idx = st.session_state["chart_open_row"]
+        st.session_state["chart_open_row"] = None
+        show_candlestick_dialog(view.iloc[row_idx])
 
     with st.expander("Category frequency"):
         counts = pd.Series(
